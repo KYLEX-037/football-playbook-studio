@@ -1,0 +1,32 @@
+{
+  "id": "./",
+  "name": "橄榄球战术室",
+  "short_name": "战术室",
+  "lang": "zh-CN",
+  "description": "本机保存的橄榄球战术板：比赛与训练战术集、自由绘图、整集 PDF 和 PNG 导出。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#101d21",
+  "theme_color": "#101d21",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

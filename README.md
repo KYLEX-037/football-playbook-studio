@@ -1,0 +1,26 @@
+# 橄榄球战术室
+
+通用的美式橄榄球战术板，支持自由移动球员、跑动/阻挡/Motion 路线、按比赛或训练组织战术集，以及整集 PDF / PNG ZIP 导出。
+
+## 给队友使用
+
+### 离线文件版（电脑）
+解压整个压缩包，用 Chrome、Edge 或 Safari 打开 index.html。无需注册账号或安装依赖；不需要网络。请保存到固定文件夹，之后始终从这里打开。手机请优先使用已部署的网页链接并添加到主屏幕。
+
+### 网页安装版（PWA）
+打开发布后的 HTTPS 网页链接，点击「安装到桌面」。电脑使用 Chrome / Edge；安卓用 Chrome；iPhone / iPad 用 Safari 的分享菜单 → 添加到主屏幕。微信内打不开安装入口时，选择在系统浏览器打开。
+首次联网打开后，等左下角显示「已缓存，可离线打开」，之后可以从桌面图标离线使用。
+
+## 战术数据
+
+数据只保存在当前设备、当前浏览器中，不上传到 GitHub，也不自动同步到其他设备或队友。
+每次完成训练/比赛分析后，建议点击「备份所有战术集」保存 JSON。队友通过「分享本集」和「导入战术集」交换可编辑文件；PDF 和 PNG 是供查看的导出结果。
+换浏览器、换设备、搬动离线 HTML 文件或切换到网页版本时，请先备份，再在新位置导入。清理浏览器数据、无痕模式或设备损坏可能导致本机数据丢失。
+
+## GitHub Pages 发布
+
+将 index.html、sw.js、manifest.webmanifest、icon-192.png、icon-512.png、football-playbook-offline.zip 以及 .nojekyll 放在仓库根目录。
+仓库 Settings → Pages → Deploy from a branch → main / (root) → Save。
+使用 GitHub Pages 显示的 HTTPS 地址。无需后端、数据库、API Key 或用户注册。
+
+软件包只包含程序和默认演示阵型，不包含任何使用者画的战术。
