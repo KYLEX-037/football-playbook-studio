@@ -1,4 +1,4 @@
-const CACHE='football-studio-v3-20261021';
+const CACHE='football-studio-v4-20261103';
 const ROOT=new URL('./',self.location.href);
 const SHELL=['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL.map(path=>new URL(path,ROOT).href)))));
