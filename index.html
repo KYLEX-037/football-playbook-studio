@@ -182,7 +182,7 @@ extraTools.remove();
 panel.className='route-popup';panel.hidden=true;document.body.append(panel);const closeRoutes=document.createElement('button');closeRoutes.textContent='收起 ×';closeRoutes.style.cssText='float:right;padding:3px 7px';closeRoutes.onclick=()=>panel.hidden=true;panel.prepend(closeRoutes);
 panel.querySelector('p').textContent='点击路线替换当前球员的跑动路线；每人只保留一条，可撤销恢复。';
 const oldInspect=inspect;
-inspect=function(){oldInspect();const player=current?.objects.find(o=>o.id===selected&&o.kind==='player'&&o.team==='o');const eligible=player&&!['C','LG','RG','LT','RT','OL','G','T','LS'].includes(player.label.trim().toUpperCase());panel.hidden=!eligible;if(eligible)panel.querySelector('h2').textContent=player.label+' · 一键接球路线'};
+inspect=function(){oldInspect();const player=current?.objects.find(o=>o.id===selected&&o.kind==='player'&&o.team==='o');const eligible=player&&!['C','LG','RG','LT','RT','OL','G','T','LS'].includes(player.label.trim().toUpperCase());panel.hidden=!eligible;if(eligible){panel.querySelector('h2').textContent=player.label+' · 一键接球路线';if(typeof positionRoutePanel==='function')positionRoutePanel()}};
 const oldSync=sync;sync=function(){oldSync();inspect()};
 inspect();
 </script>
@@ -203,5 +203,36 @@ $('board').onpointercancel=()=>{if(handleDrag){handleDrag=null;save()}drag=null}
 const inspectBeforeHandles=inspect;inspect=function(){inspectBeforeHandles();const r=current?.objects.find(o=>o.id===selected&&o.kind==='route');if(r)$('selection').textContent+=' · 拖动白色节点调整角度或长度；Delete 单独删除路线';};
 $('hint').textContent='选择路线后拖动白色转折点或端点，可单独调整角度和长度。灰色起点跟随球员。橡皮擦点击路线即可删除；选中路线也可按 Delete 或点「删除选中」。';
 render();
+</script>
+
+<style>
+.route-popup{right:auto;bottom:auto;margin:0;width:min(280px,calc(100vw - 16px));max-height:min(340px,calc(100dvh - 16px));padding:12px}.route-popup p{display:none}.route-popup label{margin:7px 0 4px}.route-popup .palette button{padding:7px 9px}.route-popup h2{padding-right:55px;line-height:1.5}
+</style>
+<script>
+// Position in viewport coordinates, using the SVG transform (including letterboxing).
+function routePanelPosition(x,y,r,w,h,vw,vh){
+ const gap=12,edge=8,clamp=(n,a,b)=>Math.max(a,Math.min(Math.max(a,b),n));
+ let left,top=clamp(y-32,edge,vh-h-edge);
+ if(x+r+gap+w<=vw-edge)left=x+r+gap;
+ else if(x-r-gap-w>=edge)left=x-r-gap-w;
+ else {left=clamp(x-w/2,edge,vw-w-edge);top=y+r+gap+h<=vh-edge?y+r+gap:y-r-gap-h;}
+ return {left:clamp(left,edge,vw-w-edge),top:clamp(top,edge,vh-h-edge)};
+}
+function positionRoutePanel(){
+ if(panel.hidden)return;
+ const player=current?.objects.find(o=>o.id===selected&&o.kind==='player');
+ if(!player){panel.hidden=true;return}
+ const matrix=$('board').getScreenCTM();if(!matrix)return;
+ const x=matrix.a*player.x+matrix.c*player.y+matrix.e,y=matrix.b*player.x+matrix.d*player.y+matrix.f;
+ const vw=document.documentElement.clientWidth,vh=window.innerHeight,r=24*Math.max(Math.hypot(matrix.a,matrix.b),Math.hypot(matrix.c,matrix.d));
+ panel.style.visibility=x+r<0||x-r>vw||y+r<0||y-r>vh?'hidden':'visible';
+ const box=panel.getBoundingClientRect(),point=routePanelPosition(x,y,r,box.width,box.height,vw,vh);
+ panel.style.left=point.left+'px';panel.style.top=point.top+'px';
+}
+const renderBeforeAnchoredMenu=render;render=function(){renderBeforeAnchoredMenu();positionRoutePanel()};
+window.addEventListener('resize',positionRoutePanel);window.addEventListener('scroll',positionRoutePanel,{passive:true});
+window.visualViewport?.addEventListener('resize',positionRoutePanel);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')panel.hidden=true});
+positionRoutePanel();
 </script>
 </html>
