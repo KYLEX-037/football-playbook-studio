@@ -42,11 +42,85 @@ function render(){$('board').innerHTML=current?boardMarkup(current,selected,draf
 
 function inspect(){let o=current?.objects.find(o=>o.id===selected);$('selection').textContent=o?o.kind==='route'?({run:'跑动路线',block:'阻挡路线',motion:'Motion 路线',blitz:'Blitz 突袭',contain:'Contain 外侧封锁'}[o.type]):`${o.team==='d'?'防守':o.kind==='player'?'进攻':'文字'} · ${o.label}`:'点击球员、路线或文字进行编辑';$('label').value=o?.label||'';if(o)$('color').value=o.color}
 function pos(e){let p=$('board').createSVGPoint();p.x=e.clientX;p.y=e.clientY;let q=p.matrixTransform($('board').getScreenCTM().inverse());return{x:Math.max(25,Math.min(975,q.x)),y:Math.max(25,Math.min(625,q.y))}}
-$('board').onpointerdown=e=>{if(e.button!==0||!current||exporting)return;e.preventDefault();let p=pos(e),id=e.target.closest('[data-id]')?.dataset.id,o=current.objects.find(o=>o.id===id);if(mode==='select'){selected=id||null;inspect();if(o){checkpoint();drag={id,start:p,last:p,clientX:e.clientX,clientY:e.clientY,started:false};$('board').setPointerCapture(e.pointerId)}render()}else if(mode==='text'){checkpoint();current.objects.push({id:uid(),kind:'text',label:$('label').value||'战术标注',color:$('color').value,...p});save();render()}else{if(!draft)draft={id:uid(),kind:'route',type:mode,color:$('color').value,anchor:o?.kind==='player'?o.id:null,points:[o?.kind==='player'?{x:o.x,y:o.y}:p]};draft.points.push(p);drag={route:true,start:p,moved:false};$('board').setPointerCapture(e.pointerId);render()}};
-$('board').onpointermove=e=>{if(!drag)return;let p=pos(e);if(drag.route){if(Math.hypot(p.x-drag.start.x,p.y-drag.start.y)>4)drag.moved=true;if(drag.moved){let prev=draft.points[draft.points.length-1];if(Math.hypot(prev.x-p.x,prev.y-p.y)>7)draft.points.push(p)}render();return}if(!drag.started&&Math.hypot(e.clientX-drag.clientX,e.clientY-drag.clientY)<5)return;drag.started=true;const matrix=$('board').getScreenCTM().inverse();let o=current.objects.find(o=>o.id===drag.id),cx=e.clientX-drag.clientX,cy=e.clientY-drag.clientY,dx=matrix.a*cx+matrix.c*cy,dy=matrix.b*cx+matrix.d*cy;drag.clientX=e.clientX;drag.clientY=e.clientY;if(o.kind==='route')o.points.forEach(q=>{q.x+=dx;q.y+=dy});else{o.x+=dx;o.y+=dy;current.objects.filter(q=>q.anchor===o.id).forEach(q=>q.points.forEach(pt=>{pt.x+=dx;pt.y+=dy}))}drag.last=p;render()};
-function finish(){if(draft){let pts=draft.points.filter((p,i,a)=>!i||Math.hypot(p.x-a[i-1].x,p.y-a[i-1].y)>1);if(pts.length>1){checkpoint();draft.points=pts;current.objects.push(draft)}draft=null;render();save()}}
-$('board').onpointerup=()=>{if(drag?.route&&drag.moved)finish();else if(drag&&!drag.route)save();drag=null};$('board').onpointercancel=()=>{drag=null};$('finish').onclick=finish;
-$('tools').onclick=e=>{let m=e.target.dataset.mode;if(m){finish();mode=m;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===m))}};
+// Player hits always move/select, without changing the active drawing tool.
+const routeModes=new Set(['run','block','motion','blitz','contain']);
+function nearbyRoutePlayer(point){
+ const candidates=current.objects.filter(o=>o.kind==='player'&&Math.hypot(o.x-point.x,o.y-point.y)<=26);
+ return candidates.length===1?candidates[0]:null;
+}
+function bindNearbyRoutes(player){
+ // Recover old freehand lines whose origin unambiguously touches this player.
+ for(const r of current.objects){
+  if(r.kind==='route'&&!r.anchor&&r.points.length&&nearbyRoutePlayer(r.points[0])?.id===player.id)r.anchor=player.id;
+ }
+}
+$('board').onpointerdown=e=>{
+ if(e.button!==0||!current||exporting)return;
+ e.preventDefault();
+ const p=pos(e),id=e.target.closest('[data-id]')?.dataset.id,o=current.objects.find(o=>o.id===id);
+ if(o?.kind==='player'||mode==='select'){
+  finish();selected=id||null;inspect();
+  if(o){drag={id,start:p,last:p,clientX:e.clientX,clientY:e.clientY,started:false};$('board').setPointerCapture(e.pointerId)}
+  render();return;
+ }
+ if(mode==='text'){
+  checkpoint();current.objects.push({id:uid(),kind:'text',label:$('label').value||'战术标注',color:$('color').value,...p});save();render();return;
+ }
+ if(!routeModes.has(mode))return;
+ if(!draft){
+  const player=current.objects.find(o=>o.id===selected&&o.kind==='player')||nearbyRoutePlayer(p);
+  draft={id:uid(),kind:'route',type:mode,color:$('color').value,anchor:player?.id||null,points:[player?{x:player.x,y:player.y}:p]};
+ }
+ draft.points.push(p);drag={route:true,start:p,moved:false};
+ if(typeof panel!=='undefined')panel.hidden=true;
+ $('board').setPointerCapture(e.pointerId);render();
+};
+$('board').onpointermove=e=>{
+ if(!drag)return;
+ const p=pos(e);
+ if(drag.route){
+  if(!draft){drag=null;return}
+  if(Math.hypot(p.x-drag.start.x,p.y-drag.start.y)>4)drag.moved=true;
+  if(drag.moved){const prev=draft.points[draft.points.length-1];if(Math.hypot(prev.x-p.x,prev.y-p.y)>7)draft.points.push(p)}
+  render();return;
+ }
+ const o=current.objects.find(o=>o.id===drag.id);if(!o){drag=null;return}
+ if(!drag.started){
+  if(Math.hypot(e.clientX-drag.clientX,e.clientY-drag.clientY)<5)return;
+  checkpoint();drag.started=true;
+  if(o.kind==='player'){bindNearbyRoutes(o);if(typeof panel!=='undefined')panel.hidden=true}
+ }
+ const matrix=$('board').getScreenCTM().inverse(),cx=e.clientX-drag.clientX,cy=e.clientY-drag.clientY,dx=matrix.a*cx+matrix.c*cy,dy=matrix.b*cx+matrix.d*cy;
+ drag.clientX=e.clientX;drag.clientY=e.clientY;
+ if(o.kind==='route')o.points.forEach(q=>{q.x+=dx;q.y+=dy});
+ else{
+  o.x+=dx;o.y+=dy;
+  current.objects.filter(q=>q.kind==='route'&&q.anchor===o.id).forEach(q=>q.points.forEach(pt=>{pt.x+=dx;pt.y+=dy}));
+ }
+ drag.last=p;render();
+};
+function finish(){
+ if(!draft)return;
+ const pts=draft.points.filter((p,i,a)=>!i||Math.hypot(p.x-a[i-1].x,p.y-a[i-1].y)>1);
+ if(pts.length>1){
+  checkpoint();draft.points=pts;
+  if(draft.type==='run'&&draft.anchor)current.objects=current.objects.filter(o=>!(o.kind==='route'&&o.type==='run'&&o.anchor===draft.anchor));
+  current.objects.push(draft);
+ }
+ draft=null;render();save();
+}
+$('board').onpointerup=()=>{
+ if(drag?.route&&drag.moved)finish();
+ else if(drag?.started)save();
+ drag=null;
+};
+$('board').onpointercancel=()=>{if(drag?.started)save();drag=null};$('finish').onclick=finish;
+$('tools').onclick=e=>{
+ const m=e.target.dataset.mode;if(!m)return;
+ finish();mode=m;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));
+ if(typeof panel!=='undefined')panel.hidden=true;
+ render();
+};
 for(let [id,labels,team]of [['offense','C LG LT RG RT QB RB FB X Y Z TE','o'],['defense','NT DT DE OLB ILB MLB LB FS SS CB','d']]){for(let label of labels.split(' ')){let b=document.createElement('button');b.textContent=label;b.onclick=()=>{checkpoint();let o={id:uid(),kind:'player',team,label,x:470+Math.random()*60,y:team==='o'?510:190,color:team==='o'?'#c2ee78':'#f3a480'};current.objects.push(o);selected=o.id;inspect();render();save()};$(id).append(b)}}
 $('apply').onclick=()=>{let o=current?.objects.find(o=>o.id===selected);if(!o)return toast('请先选择对象');checkpoint();if(o.kind!=='route')o.label=$('label').value.trim()||o.label;o.color=$('color').value;render();save();inspect()};$('remove').onclick=()=>{if(!selected)return;checkpoint();current.objects=current.objects.filter(o=>o.id!==selected&&o.anchor!==selected);selected=null;render();save();inspect()};
 $('undo').onclick=()=>{if(!undo.length)return;redo.push(JSON.stringify(current));Object.assign(current,JSON.parse(undo.pop()));selected=null;render();save();inspect();$('title').value=current.title;$('notes').value=current.notes;$('situation').value=current.situation};$('redo').onclick=()=>{if(!redo.length)return;undo.push(JSON.stringify(current));Object.assign(current,JSON.parse(redo.pop()));render();save()};
@@ -196,12 +270,13 @@ route=function(o,h=selected){let markup=renderRouteWithCaps(o,h);if(h===o.id&&mo
 let handleDrag=null;
 const originalDown=$('board').onpointerdown,originalMove=$('board').onpointermove,originalUp=$('board').onpointerup;
 $('board').onpointerdown=e=>{if(!current||exporting||e.button!==0)return;const handle=e.target.closest('[data-route-handle]');if(mode==='select'&&handle){e.preventDefault();const r=current.objects.find(o=>o.id===handle.dataset.routeHandle),i=Number(handle.dataset.point);if(!r||i===0&&r.anchor){toast('起点跟随球员；拖动其他节点调整路线');return}checkpoint();handleDrag={id:r.id,index:i};$('board').setPointerCapture(e.pointerId);return}
-if(mode==='erase'){e.preventDefault();const id=e.target.closest('[data-id]')?.dataset.id;const target=current.objects.find(o=>o.id===id);if(!target)return;if(target.kind==='player'){toast('橡皮擦只擦除路线和文字，球员会保留');return}checkpoint();current.objects=current.objects.filter(o=>o.id!==id);if(selected===id)selected=null;render();inspect();save();return}originalDown(e)};
+if(mode==='erase'){e.preventDefault();const id=e.target.closest('[data-id]')?.dataset.id;const target=current.objects.find(o=>o.id===id);if(!target)return;if(target.kind==='player'){originalDown(e);return}checkpoint();current.objects=current.objects.filter(o=>o.id!==id);if(selected===id)selected=null;render();inspect();save();return}originalDown(e)};
 $('board').onpointermove=e=>{if(handleDrag){const r=current.objects.find(o=>o.id===handleDrag.id);if(r){r.points[handleDrag.index]=pos(e);render()}return}originalMove(e)};
 $('board').onpointerup=e=>{if(handleDrag){handleDrag=null;save();return}originalUp(e)};
-$('board').onpointercancel=()=>{if(handleDrag){handleDrag=null;save()}drag=null};
+const originalCancel=$('board').onpointercancel;
+$('board').onpointercancel=e=>{if(handleDrag){handleDrag=null;save()}originalCancel(e)};
 const inspectBeforeHandles=inspect;inspect=function(){inspectBeforeHandles();const r=current?.objects.find(o=>o.id===selected&&o.kind==='route');if(r)$('selection').textContent+=' · 拖动白色节点调整角度或长度；Delete 单独删除路线';};
-$('hint').textContent='选择路线后拖动白色转折点或端点，可单独调整角度和长度。灰色起点跟随球员。橡皮擦点击路线即可删除；选中路线也可按 Delete 或点「删除选中」。';
+$('hint').textContent='任何工具下都可直接拖动球员，整条关联路线一起移动；松开后保留原工具。手动画线：选球员 → 点跑动等工具 → 在空白球场拖画，或依次点击转折点后按 Enter 完成。每人一条跑动路线，新画完成后替换旧线。选择路线可拖白色节点调整；橡皮擦或 Delete 可单独删线。';
 render();
 </script>
 
